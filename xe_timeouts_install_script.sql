@@ -288,7 +288,7 @@ BEGIN
 
 END -- IF ROWCOUNT <> 0	
 
-IF (@SendEmail = 1)
+IF (@SendEmail = 1 AND @email_rec IS NOT NULL)
 BEGIN
 	Select @body = '<html><head><style>' +
 					  'td {border: solid black 1px;padding-left:5px;padding-right:5px;padding-top:1px;padding-bottom:1px;font-size:11pt;} ' +

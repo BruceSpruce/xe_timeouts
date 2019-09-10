@@ -147,6 +147,8 @@ BEGIN
       DROP TABLE #temp1;
     IF OBJECT_ID('tempdb.dbo.#Hours', 'U') IS NOT NULL
       DROP TABLE #Hours;
+    
+    DECLARE @RowCount INT = 0;
 
     SELECT	TOP(10)
 		    ROW_NUMBER() OVER (ORDER BY COUNT(object_name) DESC) AS Pos,
@@ -167,12 +169,15 @@ BEGIN
 		    query_type,
 		    result
     ORDER BY NbOfErr DESC
+
+    SET @RowCount = @@ROWCOUNT;
+
     -- GET NUMBER OF ALL TIMEOUTS --
     SELECT @NumberOfTimeouts = COUNT(*) 
     FROM [_SQL_].[XE].[timeouts]
     WHERE event_time > @StartDate AND event_time <= @CurrentDate
     --
-    IF (@@ROWCOUNT <> 0 AND @NumberOfTimeouts > @MaxTimeoutsForNotification)
+    IF (@RowCount <> 0 AND @NumberOfTimeouts > @MaxTimeoutsForNotification)
     BEGIN
 	    Set @TableTailW = '</table>';
 	    Set @TableHeadW = '<table cellpadding=0 cellspacing=0 border=0><caption>TOP 10 TIMEOUTS. DATE FROM ' + CONVERT(CHAR(19), @StartDate, 121) + ' TO ' + CONVERT(CHAR(19), @CurrentDate, 121) + '</caption>' +

@@ -56,7 +56,7 @@ GO
 -- EXEC usp_XEGetTimeouts @email_rec = 'MSSQLAdmins@domain.com', @Only_report = 1, @XE_Path = 'S:\XE', @StartDate = '1900-01-01 00:00:00.000', @CurrentDate = '1901-01-01 00:00:00.000'
 -- EXEC usp_XEGetTimeouts @email_rec = 'MSSQLAdmins@domain.com', @Only_report = 0, @XE_Path = 'S:\XE'
 
-USE [master]
+USE [_SQL_]
 GO
 ----
 IF NOT EXISTS (

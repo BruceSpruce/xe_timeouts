@@ -14,7 +14,7 @@ GO
 ALTER EVENT SESSION [Timeouts] ON SERVER 
 STATE = START;
 GO
---- 2. Instalacja struktury ---
+--- 3. Instalacja struktury ---
 USE _SQL_
 GO
 CREATE SCHEMA XE
@@ -42,7 +42,7 @@ CREATE TABLE [_SQL_].[XE].[timeouts](
 
 GO
 
---- 3. Instalacja procedury ---
+--- 4. Instalacja procedury ---
 USE [_SQL_]
 GO 
 
@@ -345,7 +345,7 @@ BEGIN
 END
 GO
 
---- 4. Instalacja JOBA ---
+--- 5. Instalacja JOBA ---
 
 USE [msdb]
 GO

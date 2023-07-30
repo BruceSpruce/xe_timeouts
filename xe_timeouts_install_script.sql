@@ -72,11 +72,11 @@ IF NOT EXISTS (
    WHERE SPECIFIC_SCHEMA = N'dbo'
      AND SPECIFIC_NAME = N'usp_XEGetTimeouts' 
 )
-   EXEC ('CREATE PROCEDURE [dbo].[usp_XEGetTimeouts] AS SELECT 1');
+   EXEC ('CREATE PROCEDURE [XE].[usp_XEGetTimeouts] AS SELECT 1');
 GO
 ---
 
-ALTER PROCEDURE [dbo].[usp_XEGetTimeouts] @profile_name NVARCHAR(128) = 'mail_profile',
+ALTER PROCEDURE [XE].[usp_XEGetTimeouts] @profile_name NVARCHAR(128) = 'mail_profile',
 										  @email_rec NVARCHAR(MAX) = 'MSSQLAdmins@domain.com', 
 										  @Only_report BIT = 0,
 										  @XE_Path NVARCHAR(MAX) = 'C:\XE', 
@@ -386,7 +386,7 @@ EXEC msdb.dbo.sp_add_jobstep @job_name=N'__XE_TIMEOUTS__', @step_name=N'_report_
 		@retry_attempts=0, 
 		@retry_interval=0, 
 		@os_run_priority=0, @subsystem=N'TSQL', 
-		@command=N'EXEC [_SQL_].[XE].usp_XEGetTimeouts @profile_name = ''mail_profile'', @email_rec = ''MSSQLAdmins@domain.com'', @XE_Path=''C:\XE'', @Only_report = 0, @MaxErrorsForNotification = 0;', 
+		@command=N'EXEC [_SQL_].[XE].usp_XEGetTimeouts @profile_name = ''mail_profile'', @email_rec = ''MSSQLAdmins@domain.com'', @XE_Path=''C:\XE'', @Only_report = 0, @MaxTimeoutsForNotification = 0;', 
 		@database_name=N'master', 
 		@flags=0
 GO

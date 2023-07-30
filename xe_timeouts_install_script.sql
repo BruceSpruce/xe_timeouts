@@ -327,7 +327,7 @@ BEGIN
 					      '<body>' + @body + '</br>
                           All the timeouts collected: <b>' + CAST(@NumberOfTimeouts AS VARCHAR(10))  + '</b></br>
                           Timeout notification level: <b>' + CAST(@MaxTimeoutsForNotification AS VARCHAR(10))  + '</b></br>
-                          </br>XE Timeouts 2019</body></html>'
+                          </br>XE Timeouts 2023</body></html>'
 
 	    --SELECT @body
 

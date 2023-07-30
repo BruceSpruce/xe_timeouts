@@ -1,5 +1,12 @@
---- 1. Stworzenie katalogu C:\XE ---
---- 2. Stwoerzenie sesji XE ---
+---- 1. CREATE FOLDER FOR EVENTS ----
+-- C:\XE -- repalce in whole script if you change it
+
+---- 2. CHOOSE DATABASE FOR STRUCTURE ----
+USE [_SQL_] --repalce [_SQL_] in whole script if you change it
+GO
+
+---- 3. CREATE SESSION ---
+
 CREATE EVENT SESSION [Timeouts] ON SERVER 
 ADD EVENT sqlserver.rpc_completed(SET collect_statement=(1)
     ACTION(sqlserver.client_hostname,sqlserver.database_name,sqlserver.plan_handle,sqlserver.session_id,sqlserver.sql_text,sqlserver.transaction_id,sqlserver.username,query_hash)
@@ -14,8 +21,10 @@ GO
 ALTER EVENT SESSION [Timeouts] ON SERVER 
 STATE = START;
 GO
---- 3. Instalacja struktury ---
-USE _SQL_
+
+---- 4. CREATE STRUCTURE ----
+
+USE [_SQL_]
 GO
 CREATE SCHEMA XE
 GO
@@ -42,9 +51,7 @@ CREATE TABLE [_SQL_].[XE].[timeouts](
 
 GO
 
---- 4. Instalacja procedury ---
-USE [_SQL_]
-GO 
+---- 5. CREATE PROCEDURE ----
 
 SET ANSI_NULLS ON
 GO
@@ -53,8 +60,8 @@ SET QUOTED_IDENTIFIER ON
 GO
 
 
--- EXEC usp_XEGetTimeouts @email_rec = 'MSSQLAdmins@domain.com', @Only_report = 1, @XE_Path = 'S:\XE', @StartDate = '1900-01-01 00:00:00.000', @CurrentDate = '1901-01-01 00:00:00.000'
--- EXEC usp_XEGetTimeouts @email_rec = 'MSSQLAdmins@domain.com', @Only_report = 0, @XE_Path = 'S:\XE'
+-- EXEC usp_XEGetTimeouts @email_rec = 'MSSQLAdmins@domain.com', @Only_report = 1, @XE_Path = 'C:\XE', @StartDate = '1900-01-01 00:00:00.000', @CurrentDate = '1901-01-01 00:00:00.000'
+-- EXEC usp_XEGetTimeouts @email_rec = 'MSSQLAdmins@domain.com', @Only_report = 0, @XE_Path = 'C:\XE'
 
 USE [_SQL_]
 GO
@@ -69,7 +76,8 @@ IF NOT EXISTS (
 GO
 ---
 
-ALTER PROCEDURE [dbo].[usp_XEGetTimeouts] @email_rec NVARCHAR(MAX) = 'MSSQLAdmins@domain.com', 
+ALTER PROCEDURE [dbo].[usp_XEGetTimeouts] @profile_name NVARCHAR(128) = 'mail_profile',
+										  @email_rec NVARCHAR(MAX) = 'MSSQLAdmins@domain.com', 
 										  @Only_report BIT = 0,
 										  @XE_Path NVARCHAR(MAX) = 'C:\XE', 
 										  @StartDate datetime2 = '1900-01-01 00:00:00.000', 
@@ -327,7 +335,7 @@ BEGIN
 
 	    -- return output
 	     EXEC msdb.dbo.sp_send_dbmail
-				    @profile_name = 'mail_profile',
+				    @profile_name = @profile_name,
 				    @recipients = @email_rec,
 				    @body =  @body,
 				    @subject = @Subject,
@@ -345,102 +353,84 @@ BEGIN
 END
 GO
 
---- 5. Instalacja JOBA ---
+---- 6. JOB ----
 
 USE [msdb]
 GO
 
-/****** Object:  Job [__XE_ERRORS__]    Script Date: 2016-02-26 14:23:48 ******/
-BEGIN TRANSACTION
-DECLARE @ReturnCode INT
-SELECT @ReturnCode = 0
-/****** Object:  JobCategory [[Uncategorized (Local)]]    Script Date: 2016-02-26 14:23:48 ******/
-IF NOT EXISTS (SELECT name FROM msdb.dbo.syscategories WHERE name=N'[Uncategorized (Local)]' AND category_class=1)
-BEGIN
-EXEC @ReturnCode = msdb.dbo.sp_add_category @class=N'JOB', @type=N'LOCAL', @name=N'[Uncategorized (Local)]'
-IF (@@ERROR <> 0 OR @ReturnCode <> 0) GOTO QuitWithRollback
-
-END
+DECLARE @Date datetime2 = GETDATE();
+DECLARE @Name NVARCHAR(100) = ORIGINAL_LOGIN()
+DECLARE @Description NVARCHAR(2000) = N'Presents report from timeouts captured by Extended Events - ' + CONVERT(CHAR(10), @Date, 121) + ' - ' + @Name;
 
 DECLARE @jobId BINARY(16)
-EXEC @ReturnCode =  msdb.dbo.sp_add_job @job_name=N'__XE_TIMEOUTS__', 
+EXEC  msdb.dbo.sp_add_job @job_name=N'__XE_TIMEOUTS__', 
 		@enabled=1, 
 		@notify_level_eventlog=0, 
 		@notify_level_email=2, 
-		@notify_level_netsend=0, 
-		@notify_level_page=0, 
+		@notify_level_page=2, 
 		@delete_level=0, 
-		@description=N'Timeout reports', 
-		@category_name=N'[Uncategorized (Local)]', 
-		@owner_login_name=N'sa', 
-		@notify_email_operator_name=N'MSSQLAdmins', @job_id = @jobId OUTPUT
-IF (@@ERROR <> 0 OR @ReturnCode <> 0) GOTO QuitWithRollback
-/****** Object:  Step [_GtRR_]    Script Date: 2016-02-26 14:23:48 ******/
-EXEC @ReturnCode = msdb.dbo.sp_add_jobstep @job_id=@jobId, @step_name=N'_GtRR_', 
+		@description=@Description, 
+		@category_name=N'Database Maintenance', 
+		@owner_login_name=N'sa', @job_id = @jobId OUTPUT
+select @jobId
+GO
+EXEC msdb.dbo.sp_add_jobserver @job_name=N'__XE_TIMEOUTS__', @server_name = @@SERVERNAME
+GO
+USE [msdb]
+GO
+EXEC msdb.dbo.sp_add_jobstep @job_name=N'__XE_TIMEOUTS__', @step_name=N'_report_', 
 		@step_id=1, 
 		@cmdexec_success_code=0, 
-		@on_success_action=3, 
-		@on_success_step_id=0, 
-		@on_fail_action=2, 
-		@on_fail_step_id=0, 
-		@retry_attempts=0, 
-		@retry_interval=0, 
-		@os_run_priority=0, @subsystem=N'TSQL', 
-		@command=N'EXEC usp_XEGetTimeouts @email_rec = ''MSSQLAdmins@domain.com'',  @MaxTimeoutsForNotification = 0', 
-		@database_name=N'_SQL_', 
-		@flags=0
-IF (@@ERROR <> 0 OR @ReturnCode <> 0) GOTO QuitWithRollback
-/****** Object:  Step [_DLT_]    Script Date: 2016-02-26 14:23:48 ******/
-EXEC @ReturnCode = msdb.dbo.sp_add_jobstep @job_id=@jobId, @step_name=N'_DLT_', 
-		@step_id=2, 
-		@cmdexec_success_code=0, 
 		@on_success_action=1, 
-		@on_success_step_id=0, 
 		@on_fail_action=2, 
-		@on_fail_step_id=0, 
 		@retry_attempts=0, 
 		@retry_interval=0, 
 		@os_run_priority=0, @subsystem=N'TSQL', 
-		@command=N'DELETE FROM [_SQL_].[XE].[timeouts] where event_time <= DATEADD(DD, -30, GETDATE())', 
+		@command=N'EXEC [_SQL_].[XE].usp_XEGetTimeouts @profile_name = ''mail_profile'', @email_rec = ''MSSQLAdmins@domain.com'', @XE_Path=''C:\XE'', @Only_report = 0, @MaxErrorsForNotification = 0;', 
 		@database_name=N'master', 
 		@flags=0
-IF (@@ERROR <> 0 OR @ReturnCode <> 0) GOTO QuitWithRollback
-EXEC @ReturnCode = msdb.dbo.sp_update_job @job_id = @jobId, @start_step_id = 1
-IF (@@ERROR <> 0 OR @ReturnCode <> 0) GOTO QuitWithRollback
-EXEC @ReturnCode = msdb.dbo.sp_add_jobschedule @job_id=@jobId, @name=N'15:30', 
-		@enabled=1, 
-		@freq_type=8, 
-		@freq_interval=62, 
-		@freq_subday_type=1, 
-		@freq_subday_interval=0, 
-		@freq_relative_interval=0, 
-		@freq_recurrence_factor=1, 
-		@active_start_date=20160211, 
-		@active_end_date=99991231, 
-		@active_start_time=153000, 
-		@active_end_time=235959
-IF (@@ERROR <> 0 OR @ReturnCode <> 0) GOTO QuitWithRollback
-EXEC @ReturnCode = msdb.dbo.sp_add_jobschedule @job_id=@jobId, @name=N'7:30', 
-		@enabled=1, 
-		@freq_type=8, 
-		@freq_interval=62, 
-		@freq_subday_type=1, 
-		@freq_subday_interval=0, 
-		@freq_relative_interval=0, 
-		@freq_recurrence_factor=1, 
-		@active_start_date=20160211, 
-		@active_end_date=99991231, 
-		@active_start_time=73000, 
-		@active_end_time=235959
-IF (@@ERROR <> 0 OR @ReturnCode <> 0) GOTO QuitWithRollback
-EXEC @ReturnCode = msdb.dbo.sp_add_jobserver @job_id = @jobId, @server_name = N'(local)'
-IF (@@ERROR <> 0 OR @ReturnCode <> 0) GOTO QuitWithRollback
-COMMIT TRANSACTION
-GOTO EndSave
-QuitWithRollback:
-    IF (@@TRANCOUNT > 0) ROLLBACK TRANSACTION
-EndSave:
-
 GO
-
-
+USE [msdb]
+GO
+EXEC msdb.dbo.sp_update_job @job_name=N'__XE_TIMEOUTS__', 
+		@enabled=1, 
+		@start_step_id=1, 
+		@notify_level_eventlog=0, 
+		@notify_level_email=2, 
+		@notify_level_page=2, 
+		@delete_level=0, 
+		@category_name=N'Database Maintenance', 
+		@owner_login_name=N'sa', 
+		@notify_email_operator_name=N'', 
+		@notify_page_operator_name=N''
+GO
+DECLARE @schedule_id int
+EXEC msdb.dbo.sp_add_jobschedule @job_name=N'__XE_TIMEOUTS__', @name=N'workday at 6 AM', 
+		@enabled=1, 
+		@freq_type=8, 
+		@freq_interval=62, 
+		@freq_subday_type=1, 
+		@freq_subday_interval=0, 
+		@freq_relative_interval=0, 
+		@freq_recurrence_factor=1, 
+		@active_start_date=20230721, 
+		@active_end_date=99991231, 
+		@active_start_time=60000, 
+		@active_end_time=235959, @schedule_id = @schedule_id OUTPUT
+select @schedule_id
+GO
+DECLARE @schedule_id int
+EXEC msdb.dbo.sp_add_jobschedule @job_name=N'__XE_TIMEOUTS__', @name=N'workday at 4 PM', 
+		@enabled=1, 
+		@freq_type=8, 
+		@freq_interval=62, 
+		@freq_subday_type=1, 
+		@freq_subday_interval=0, 
+		@freq_relative_interval=0, 
+		@freq_recurrence_factor=1, 
+		@active_start_date=20230721, 
+		@active_end_date=99991231, 
+		@active_start_time=160000, 
+		@active_end_time=235959, @schedule_id = @schedule_id OUTPUT
+select @schedule_id
+GO

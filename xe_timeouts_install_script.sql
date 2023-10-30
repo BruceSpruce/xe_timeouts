@@ -48,7 +48,14 @@ CREATE TABLE [_SQL_].[XE].[timeouts](
 	[query_type] [nvarchar](5) NULL,
 	[object_name] [nvarchar](max) NULL
 ) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
 
+CREATE TABLE [_SQL_].[XE].[timeout_exceptions](
+	[ID] [int] IDENTITY(1,1) CONSTRAINT PK_ID_TO_EXCP PRIMARY KEY CLUSTERED WITH FILLFACTOR = 100,
+	[sql_text] [nvarchar](max) NOT NULL,
+    [username] [nvarchar](max) NOT NULL,
+    [database_name] [nvarchar](max) NOT NULL
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
 GO
 
 ---- 5. CREATE PROCEDURE ----
@@ -101,8 +108,7 @@ BEGIN
 	    --- GET DATA FROM XML --
 	    SELECT @CurrentDate = GETDATE();
 	    SELECT @StartDate = ISNULL(MAX(event_time), CAST('2001-01-01 00:00:00.000' AS datetime2)) FROM [_SQL_].[XE].[timeouts]
-	    --- INSERT NEW DATA
-	    INSERT INTO [_SQL_].[XE].[timeouts]
+	    --- INSERT NEW DATA	    
 	    SELECT	DATEADD(mi, DATEDIFF(mi, GETUTCDATE(), CURRENT_TIMESTAMP), x.event_data.value('(event/@timestamp)[1]', 'datetime2')) AS event_time,
 			    x.event_data.value('(event/data[@name="cpu_time"])[1]', 'bigint') AS cpu_time,
 			    x.event_data.value('(event/data[@name="duration"])[1]', 'bigint') AS duration,
@@ -129,12 +135,20 @@ BEGIN
 				    WHEN 'sql_batch_completed' THEN SUBSTRING(x.event_data.value('(event/data[@name="batch_text"])[1]', 'nvarchar(max)'), 0, 128)
 				    WHEN 'rpc_completed' THEN x.event_data.value('(event/data[@name="object_name"])[1]', 'nvarchar(max)')
 			    END AS object_name
+		INTO #TIMEOUTS
 	    FROM    sys.fn_xe_file_target_read_file (@XE_Path_XEL, @XE_Path_XEM, null, null)
 			       CROSS APPLY (SELECT CAST(event_data AS XML) AS event_data) as x
 	    WHERE DATEADD(mi, DATEDIFF(mi, GETUTCDATE(), CURRENT_TIMESTAMP), x.event_data.value('(event/@timestamp)[1]', 'datetime2')) > @StartDate
 	    ORDER BY event_time DESC
     END
+	--- DELETE EXCEPTIONS ---
+	DELETE [t] FROM #TIMEOUTS [t] INNER JOIN [XE].[timeout_exceptions] [te] 
+	ON [t].[sql_text]  LIKE '%' + [te].[sql_text] + '%'
+	AND [t].[username] = [te].[username]
+	AND [t].[database_name] = [te].[database_name]
     ---
+	INSERT INTO [_SQL_].[XE].[timeouts]
+	SELECT * FROM #TIMEOUTS
     ---- REPORT ----
     Declare @body varchar(max), @bodyW varchar(max),
 		    @TableHeadW varchar(max),
